@@ -2,6 +2,8 @@ import torch
 import tqdm
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
+import numpy as np
+import random
 
 from torchfm.dataset.avazu import AvazuDataset
 from torchfm.dataset.criteo import CriteoDataset
@@ -37,13 +39,13 @@ def get_dataset(name, path):
         raise ValueError('unknown dataset name: ' + name)
 
 
-def get_model(name, dataset):
+def get_model(name, dataset, args):
     """
     Hyperparameters are empirically determined, not opitmized.
     """
     field_dims = dataset.field_dims
     if name == 'lr':
-        return LogisticRegressionModel(field_dims)
+        return LogisticRegressionModel(field_dims, args.t, args.lam)
     elif name == 'fm':
         return FactorizationMachineModel(field_dims, embed_dim=16)
     elif name == 'hofm':
@@ -138,15 +140,21 @@ def test(model, data_loader, device):
     return roc_auc_score(targets, predicts)
 
 
-def main(dataset_name,
-         dataset_path,
-         model_name,
-         epoch,
-         learning_rate,
-         batch_size,
-         weight_decay,
-         device,
-         save_dir):
+def main(args):
+    dataset_name = args.dataset_name
+    dataset_path = args.dataset_path
+    model_name = args.model_name
+    epoch = args.epoch
+    learning_rate = args.learning_rate
+    batch_size = args.batch_size
+    weight_decay = args.weight_decay
+    device = args.device
+    save_dir = args.save_dir
+    rng = 2020
+    np.random.seed(seed=rng)
+    random.seed(rng)  #
+    torch.manual_seed(rng)  # 为CPU设置种子用于生成随机数，以使得结果是确定的
+    torch.cuda.manual_seed(rng)  # 为当前GPU设置随机种子；
     device = torch.device(device)
     dataset = get_dataset(dataset_name, dataset_path)
     train_length = int(len(dataset) * 0.8)
@@ -157,7 +165,7 @@ def main(dataset_name,
     train_data_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=8)
     valid_data_loader = DataLoader(valid_dataset, batch_size=batch_size, num_workers=8)
     test_data_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=8)
-    model = get_model(model_name, dataset).to(device)
+    model = get_model(model_name, dataset, args).to(device)
     criterion = torch.nn.BCELoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     early_stopper = EarlyStopper(num_trials=2, save_path=f'{save_dir}/{model_name}.pt')
@@ -185,13 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay', type=float, default=1e-6)
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--save_dir', default='chkpt')
+    parser.add_argument('--t', type=float, default=1.0)
+    parser.add_argument('--lam', type=float, default=0.0001)
     args = parser.parse_args()
-    main(args.dataset_name,
-         args.dataset_path,
-         args.model_name,
-         args.epoch,
-         args.learning_rate,
-         args.batch_size,
-         args.weight_decay,
-         args.device,
-         args.save_dir)
+    main(args)

@@ -8,9 +8,9 @@ class LogisticRegressionModel(torch.nn.Module):
     A pytorch implementation of Logistic Regression.
     """
 
-    def __init__(self, field_dims):
+    def __init__(self, field_dims, t, lam):
         super().__init__()
-        self.linear = FeaturesLinear(field_dims)
+        self.linear = FeaturesLinear(field_dims, t, lam)
 
     def forward(self, x):
         """

@@ -5,18 +5,21 @@ import torch.nn.functional as F
 
 class FeaturesLinear(torch.nn.Module):
 
-    def __init__(self, field_dims, output_dim=1):
+    def __init__(self, field_dims, t=1, lam=0.0001, output_dim=1):
         super().__init__()
         self.fc = torch.nn.Embedding(sum(field_dims), output_dim)
         self.bias = torch.nn.Parameter(torch.zeros((output_dim,)))
         self.offsets = np.array((0, *np.cumsum(field_dims)[:-1]), dtype=np.long)
+        self.t = t
+        self.lam = lam
 
     def forward(self, x):
         """
         :param x: Long tensor of size ``(batch_size, num_fields)``
         """
         x = x + x.new_tensor(self.offsets).unsqueeze(0)
-        return torch.sum(self.fc(x), dim=1) + self.bias
+        polar = self.t * torch.sum(torch.abs(self.fc(x)), dim=1) - torch.sum(torch.abs(self.fc(x)-1), dim=1)
+        return torch.sum(self.fc(x), dim=1) + self.bias + self.lam*polar
 
 
 class FeaturesEmbedding(torch.nn.Module):
